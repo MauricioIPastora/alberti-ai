@@ -7,6 +7,7 @@ import type React from "react";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { SessionProvider } from "next-auth/react";
 
 // Geist font family for neobrutalist aesthetic
 const geistSans = Geist({
@@ -21,7 +22,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Alberti AI - Job Tracker Pro",
-  description: "Track job applications, optimize your resume, and manage referrals with AI",
+  description:
+    "Track job applications, optimize your resume, and manage referrals with AI",
 };
 
 export default function RootLayout({
@@ -31,9 +33,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
-        {children}
-      </body>
+      <SessionProvider>
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+        >
+          {children}
+        </body>
+      </SessionProvider>
     </html>
   );
 }

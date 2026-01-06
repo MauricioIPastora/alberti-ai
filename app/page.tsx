@@ -8,10 +8,11 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { fetchJobs } from "@/lib/jobs";
 import { useApplications, useReferrals, useResume } from "@/lib/storage";
+import { useAuth } from "@/lib/auth";
 import type { UIJob, Application } from "@/lib/app-types";
 import JobCard from "@/components/neobrutalist/job-card";
 import JobSearch from "@/components/neobrutalist/job-search";
@@ -19,7 +20,10 @@ import OptimizeModal from "@/components/neobrutalist/optimize-modal";
 import ResumeUpload from "@/components/neobrutalist/resume-upload";
 import ApplicationTracker from "@/components/neobrutalist/application-tracker";
 import ReferralManager from "@/components/neobrutalist/referral-manager";
-import { Upload, Briefcase, Users, Zap } from "lucide-react";
+import AuthModal from "@/components/neobrutalist/auth-modal";
+import UserSettings from "@/components/neobrutalist/user-settings";
+import { Upload, Briefcase, Users, Zap, UserCircle } from "lucide-react";
+import Image from "next/image";
 
 export default function JobTrackerPro() {
   // Job state
@@ -33,12 +37,16 @@ export default function JobTrackerPro() {
   const [showResumeUpload, setShowResumeUpload] = useState(false);
   const [showTracker, setShowTracker] = useState(false);
   const [showReferrals, setShowReferrals] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [showSettings, setShowSettings] = useState(false);
 
   // Storage hooks for persistent data
   const { applications, addApplication, deleteApplicationByJobId } =
     useApplications();
   const { referrals } = useReferrals();
   const { resume } = useResume();
+  const { isAuthenticated, user } = useAuth();
 
   /**
    * Handle job search - calls the SerpAPI backend
@@ -106,6 +114,18 @@ export default function JobTrackerPro() {
     );
   };
 
+  /**
+   * Handle protected actions - prompts login if not authenticated
+   */
+  const handleProtectedAction = (action: () => void) => {
+    if (!isAuthenticated) {
+      setAuthMode("login");
+      setShowAuthModal(true);
+    } else {
+      action();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 p-2 sm:p-4 md:p-8">
       <div className="w-full max-w-7xl mx-auto backdrop-blur-xl bg-white/40 border-4 border-black rounded-3xl shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
@@ -114,21 +134,58 @@ export default function JobTrackerPro() {
             Contains logo, action buttons, and search bar
             ===================================================================== */}
         <header className="border-b-4 border-black p-4 sm:p-6 bg-white/60 backdrop-blur-md">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
             {/* Logo and Title */}
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-black text-white rounded-xl flex items-center justify-center">
-                <Zap className="h-7 w-7" />
-              </div>
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-balance">
-                ALBERTI AI
+            <div className="flex items-center -my-2 -ml-2">
+              <Image
+                src="/alberti.png"
+                alt="Alberti.AI"
+                width={200}
+                height={200}
+              />
+              <h1 className="-ml-16 text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-balance">
+                ALBERTI.AI
               </h1>
             </div>
 
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-3">
+              {isAuthenticated ? (
+                <Button
+                  onClick={() => setShowSettings(true)}
+                  variant="outline"
+                  className="bg-gradient-to-r from-green-400 to-blue-400 hover:from-green-500 hover:to-blue-500 text-black rounded-xl border-2 border-black font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+                >
+                  <UserCircle className="h-4 w-4 mr-2" />
+                  {user?.name}
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    onClick={() => {
+                      setAuthMode("login");
+                      setShowAuthModal(true);
+                    }}
+                    variant="outline"
+                    className="bg-white hover:bg-gray-50 rounded-xl border-2 border-black font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+                  >
+                    Login
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setAuthMode("signup");
+                      setShowAuthModal(true);
+                    }}
+                    className="bg-black hover:bg-black/80 text-white rounded-xl border-2 border-black font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+                  >
+                    Sign Up
+                  </Button>
+                </>
+              )}
               <Button
-                onClick={() => setShowResumeUpload(true)}
+                onClick={() =>
+                  handleProtectedAction(() => setShowResumeUpload(true))
+                }
                 variant="outline"
                 className="bg-white hover:bg-gray-50 rounded-xl border-2 border-black font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
               >
@@ -136,7 +193,9 @@ export default function JobTrackerPro() {
                 {resume ? "Resume ✓" : "Upload Resume"}
               </Button>
               <Button
-                onClick={() => setShowTracker(true)}
+                onClick={() =>
+                  handleProtectedAction(() => setShowTracker(true))
+                }
                 variant="outline"
                 className="bg-white hover:bg-gray-50 rounded-xl border-2 border-black font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
               >
@@ -144,7 +203,9 @@ export default function JobTrackerPro() {
                 Tracker ({applications.length})
               </Button>
               <Button
-                onClick={() => setShowReferrals(true)}
+                onClick={() =>
+                  handleProtectedAction(() => setShowReferrals(true))
+                }
                 variant="outline"
                 className="bg-white hover:bg-gray-50 rounded-xl border-2 border-black font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
               >
@@ -244,6 +305,15 @@ export default function JobTrackerPro() {
           MODALS
           Dialogs for various features
           ===================================================================== */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        mode={authMode}
+      />
+      <UserSettings
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
       <OptimizeModal
         job={selectedJob}
         resume={resume}
