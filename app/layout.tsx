@@ -1,17 +1,27 @@
-import type { Metadata } from "next";
-import { Silkscreen } from "next/font/google";
-import "./globals.css";
-import { Navbar } from "@/components/alberti-components/global/nav-bar";
+/* =============================================================================
+   ALBERTI AI - ROOT LAYOUT
+   Neobrutalist Design integrated with existing structure
+   ============================================================================= */
 
-const silkscreen = Silkscreen({
-  variable: "--font-silkscreen",
+import type React from "react";
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+
+// Geist font family for neobrutalist aesthetic
+const geistSans = Geist({
+  variable: "--font-geist-sans",
   subsets: ["latin"],
-  weight: ["400", "700"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Alberti AI",
-  description: "Optimize your resume and apply to jobs with AI",
+  title: "Alberti AI - Job Tracker Pro",
+  description: "Track job applications, optimize your resume, and manage referrals with AI",
 };
 
 export default function RootLayout({
@@ -21,10 +31,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={silkscreen.variable}>
-        <header className="sticky top-0 z-50">
-          <Navbar />
-        </header>
+      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         {children}
       </body>
     </html>
