@@ -12,6 +12,7 @@ import {
   ConfirmSignUpCommand,
   type InitiateAuthCommandOutput,
 } from "@aws-sdk/client-cognito-identity-provider";
+import crypto from "crypto";
 
 // Cognito client
 const cognitoClient = new CognitoIdentityProviderClient({
@@ -19,6 +20,17 @@ const cognitoClient = new CognitoIdentityProviderClient({
 });
 
 const CLIENT_ID = process.env.COGNITO_CLIENT_ID!;
+const CLIENT_SECRET = process.env.COGNITO_CLIENT_SECRET;
+
+// Compute SECRET_HASH required when app client has a secret configured
+function computeSecretHash(username: string): string | undefined {
+  if (!CLIENT_SECRET) return undefined;
+
+  const message = username + CLIENT_ID;
+  const hmac = crypto.createHmac("sha256", CLIENT_SECRET);
+  hmac.update(message);
+  return hmac.digest("base64");
+}
 
 // ============================================================================
 // COGNITO AUTH FUNCTIONS
@@ -30,10 +42,12 @@ export async function cognitoSignUp(
   name: string
 ) {
   try {
+    const secretHash = computeSecretHash(email);
     const command = new SignUpCommand({
       ClientId: CLIENT_ID,
       Username: email,
       Password: password,
+      ...(secretHash && { SecretHash: secretHash }),
       UserAttributes: [
         { Name: "email", Value: email },
         { Name: "name", Value: name },
@@ -54,10 +68,12 @@ export async function cognitoSignUp(
 
 export async function cognitoConfirmSignUp(email: string, code: string) {
   try {
+    const secretHash = computeSecretHash(email);
     const command = new ConfirmSignUpCommand({
       ClientId: CLIENT_ID,
       Username: email,
       ConfirmationCode: code,
+      ...(secretHash && { SecretHash: secretHash }),
     });
 
     await cognitoClient.send(command);
@@ -70,12 +86,14 @@ export async function cognitoConfirmSignUp(email: string, code: string) {
 
 export async function cognitoSignIn(email: string, password: string) {
   try {
+    const secretHash = computeSecretHash(email);
     const command = new InitiateAuthCommand({
       AuthFlow: "USER_PASSWORD_AUTH",
       ClientId: CLIENT_ID,
       AuthParameters: {
         USERNAME: email,
         PASSWORD: password,
+        ...(secretHash && { SECRET_HASH: secretHash }),
       },
     });
 
@@ -199,8 +217,29 @@ export function useAuth() {
     return data;
   };
 
+  const confirmSignup = async (email: string, code: string) => {
+    const res = await fetch("/api/auth/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, code }),
+    });
+
+    const data = await res.json();
+    return data;
+  };
+
   const logout = async () => {
     await nextAuthSignOut({ redirect: false });
+  };
+
+  const updateUser = async (name: string, email: string, password: string) => {
+    const res = await fetch("/api/auth/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password }),
+    });
+    const data = await res.json();
+    return data;
   };
 
   return {
@@ -209,6 +248,8 @@ export function useAuth() {
     isLoading: status === "loading",
     login,
     signup,
+    confirmSignup,
     logout,
+    updateUser,
   };
 }

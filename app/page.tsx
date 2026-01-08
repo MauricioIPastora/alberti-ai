@@ -22,6 +22,7 @@ import ApplicationTracker from "@/components/neobrutalist/application-tracker";
 import ReferralManager from "@/components/neobrutalist/referral-manager";
 import AuthModal from "@/components/neobrutalist/auth-modal";
 import UserSettings from "@/components/neobrutalist/user-settings";
+import LandingHero from "@/components/neobrutalist/hero";
 import { Upload, Briefcase, Users, Zap, UserCircle } from "lucide-react";
 import Image from "next/image";
 
@@ -40,6 +41,7 @@ export default function JobTrackerPro() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [showSettings, setShowSettings] = useState(false);
+  const [showJobList, setShowJobList] = useState(false);
 
   // Storage hooks for persistent data
   const { applications, addApplication, deleteApplicationByJobId } =
@@ -64,6 +66,19 @@ export default function JobTrackerPro() {
       setJobs([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Handle search from landing page hero
+   */
+  const handleLandingSearch = (query: string) => {
+    if (!isAuthenticated) {
+      setAuthMode("signup");
+      setShowAuthModal(true);
+    } else {
+      setShowJobList(true);
+      handleSearch(query, "");
     }
   };
 
@@ -125,6 +140,42 @@ export default function JobTrackerPro() {
       action();
     }
   };
+
+  /**
+   * Handle auth modal close - navigate to job list after successful auth
+   */
+  const handleAuthClose = () => {
+    setShowAuthModal(false);
+    if (isAuthenticated && !showJobList) {
+      setShowJobList(true);
+      handleSearch("", "");
+    }
+  };
+
+  // Show landing hero for unauthenticated users who haven't started job search
+  if (!isAuthenticated && !showJobList) {
+    return (
+      <>
+        <LandingHero
+          onSearchSubmit={handleLandingSearch}
+          onAuthClick={(mode) => {
+            setAuthMode(mode);
+            setShowAuthModal(true);
+          }}
+          onSettingsClick={() => setShowSettings(true)}
+        />
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={handleAuthClose}
+          mode={authMode}
+        />
+        <UserSettings
+          isOpen={showSettings}
+          onClose={() => setShowSettings(false)}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 p-2 sm:p-4 md:p-8">
@@ -307,7 +358,7 @@ export default function JobTrackerPro() {
           ===================================================================== */}
       <AuthModal
         isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
+        onClose={handleAuthClose}
         mode={authMode}
       />
       <UserSettings
@@ -316,7 +367,7 @@ export default function JobTrackerPro() {
       />
       <OptimizeModal
         job={selectedJob}
-        resume={resume}
+        resume={resume ?? null}
         isOpen={showOptimizeModal}
         onClose={() => setShowOptimizeModal(false)}
       />

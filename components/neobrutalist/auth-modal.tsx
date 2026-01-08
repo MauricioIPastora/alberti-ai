@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogIn, UserPlus, AlertCircle } from "lucide-react";
+import { LogIn, UserPlus, AlertCircle, Mail, CheckCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 interface AuthModalProps {
@@ -26,45 +26,68 @@ export default function AuthModal({
   onClose,
   mode: initialMode = "login",
 }: AuthModalProps) {
-  const [mode, setMode] = useState<"login" | "signup">(initialMode);
+  const [mode, setMode] = useState<"login" | "signup" | "confirm">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [confirmationCode, setConfirmationCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  const { login, signup } = useAuth();
+  const { login, signup, confirmSignup } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSuccessMessage("");
     setLoading(true);
 
     try {
-      let success = false;
-
       if (mode === "login") {
-        success = await login(email, password);
+        const success = await login(email, password);
         if (!success) {
           setError("Invalid email or password");
+        } else {
+          resetForm();
+          onClose();
         }
-      } else {
+      } else if (mode === "signup") {
         if (name.trim().length < 2) {
           setError("Name must be at least 2 characters");
           setLoading(false);
           return;
         }
-        success = await signup(email, password, name);
-        if (!success) {
-          setError("An account with this email already exists");
+        const result = await signup(email, password, name);
+        if (result.success === false) {
+          setError(result.error || "An account with this email already exists");
+        } else if (result.needsConfirmation) {
+          // Switch to confirmation mode
+          setMode("confirm");
+          setSuccessMessage("Check your email for a confirmation code!");
+        } else if (result === true) {
+          // Auto-logged in
+          resetForm();
+          onClose();
         }
-      }
-
-      if (success) {
-        setEmail("");
-        setPassword("");
-        setName("");
-        onClose();
+      } else if (mode === "confirm") {
+        const result = await confirmSignup(email, confirmationCode);
+        if (result.success) {
+          setSuccessMessage("Email confirmed! Logging you in...");
+          // Auto-login after successful confirmation
+          const loginSuccess = await login(email, password);
+          if (loginSuccess) {
+            resetForm();
+            onClose();
+          } else {
+            setError(
+              "Confirmation successful, but login failed. Please try logging in manually."
+            );
+            setMode("login");
+          }
+        } else {
+          setError(result.error || "Invalid confirmation code");
+        }
       }
     } catch (err) {
       setError("An error occurred. Please try again.");
@@ -73,9 +96,23 @@ export default function AuthModal({
     }
   };
 
-  const switchMode = () => {
-    setMode(mode === "login" ? "signup" : "login");
+  const resetForm = () => {
+    setEmail("");
+    setPassword("");
+    setName("");
+    setConfirmationCode("");
     setError("");
+    setSuccessMessage("");
+  };
+
+  const switchMode = () => {
+    if (mode === "confirm") {
+      setMode("login");
+    } else {
+      setMode(mode === "login" ? "signup" : "login");
+    }
+    setError("");
+    setSuccessMessage("");
   };
 
   return (
@@ -85,66 +122,108 @@ export default function AuthModal({
           <DialogTitle className="text-2xl font-black flex items-center gap-2">
             {mode === "login" ? (
               <LogIn className="h-6 w-6" />
-            ) : (
+            ) : mode === "signup" ? (
               <UserPlus className="h-6 w-6" />
+            ) : (
+              <Mail className="h-6 w-6" />
             )}
-            {mode === "login" ? "Login" : "Sign Up"}
+            {mode === "login"
+              ? "Login"
+              : mode === "signup"
+              ? "Sign Up"
+              : "Confirm Email"}
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === "signup" && (
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-bold">
-                Full Name
-              </Label>
-              <Input
-                id="name"
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="border-2 border-black rounded-lg"
-                placeholder="John Doe"
-              />
-            </div>
+          {mode === "confirm" ? (
+            <>
+              <div className="bg-blue-50 border-2 border-blue-400 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  We sent a confirmation code to <strong>{email}</strong>
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="code" className="text-sm font-bold">
+                  Confirmation Code
+                </Label>
+                <Input
+                  id="code"
+                  type="text"
+                  required
+                  value={confirmationCode}
+                  onChange={(e) => setConfirmationCode(e.target.value)}
+                  className="border-2 border-black rounded-lg text-center text-2xl tracking-widest"
+                  placeholder="123456"
+                  maxLength={6}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              {mode === "signup" && (
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-sm font-bold">
+                    Full Name
+                  </Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="border-2 border-black rounded-lg"
+                    placeholder="John Doe"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-bold">
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="border-2 border-black rounded-lg"
+                  placeholder="you@example.com"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-sm font-bold">
+                  Password
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="border-2 border-black rounded-lg"
+                  minLength={6}
+                />
+                {mode === "signup" && (
+                  <p className="text-xs text-gray-600">
+                    Must be at least 6 characters
+                  </p>
+                )}
+              </div>
+            </>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-bold">
-              Email
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="border-2 border-black rounded-lg"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm font-bold">
-              Password
-            </Label>
-            <Input
-              id="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="border-2 border-black rounded-lg"
-              placeholder="••••••••"
-              minLength={6}
-            />
-            {mode === "signup" && (
-              <p className="text-xs text-gray-600">
-                Must be at least 6 characters
+          {successMessage && (
+            <div className="bg-green-50 border-2 border-green-400 rounded-lg p-3 flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <p className="text-sm font-semibold text-green-600">
+                {successMessage}
               </p>
-            )}
-          </div>
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-50 border-2 border-red-400 rounded-lg p-3 flex items-center gap-2">
@@ -158,7 +237,13 @@ export default function AuthModal({
             disabled={loading}
             className="w-full bg-black hover:bg-black/80 text-white rounded-xl border-2 border-black font-bold h-12 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-50"
           >
-            {loading ? "Processing..." : mode === "login" ? "Login" : "Sign Up"}
+            {loading
+              ? "Processing..."
+              : mode === "login"
+              ? "Login"
+              : mode === "signup"
+              ? "Sign Up"
+              : "Confirm"}
           </Button>
 
           <div className="text-center pt-2">
@@ -169,7 +254,9 @@ export default function AuthModal({
             >
               {mode === "login"
                 ? "Don't have an account? Sign up"
-                : "Already have an account? Login"}
+                : mode === "signup"
+                ? "Already have an account? Login"
+                : "Back to login"}
             </button>
           </div>
         </form>

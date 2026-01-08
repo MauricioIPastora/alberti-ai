@@ -52,7 +52,7 @@ export default function UserSettings({ isOpen, onClose }: UserSettingsProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md border-4 border-black rounded-2xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+      <DialogContent className="max-w-md border-4 border-black rounded-2xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] bg-white">
         <DialogHeader>
           <DialogTitle className="text-2xl font-black flex items-center gap-2">
             <Settings className="h-6 w-6" />
