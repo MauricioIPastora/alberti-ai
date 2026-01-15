@@ -3,7 +3,8 @@
    Server-side S3 operations for file uploads
    ============================================================================= */
 
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION || "us-east-1" });
 
@@ -54,5 +55,28 @@ export async function deleteResumeFromS3(
   } catch (error: any) {
     console.error("S3 Delete Error:", error);
     return { success: false, error: error.message || "Failed to delete from S3" };
+  }
+}
+
+/**
+ * Generate a presigned URL to download a resume from S3
+ * @param s3Key - The full S3 key (path) of the file
+ * @param expiresIn - URL expiration time in seconds (default: 1 hour)
+ */
+export async function getResumePresignedUrl(
+  s3Key: string,
+  expiresIn: number = 3600
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  try {
+    const command = new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: s3Key,
+    });
+
+    const url = await getSignedUrl(s3Client, command, { expiresIn });
+    return { success: true, url };
+  } catch (error: any) {
+    console.error("S3 Presigned URL Error:", error);
+    return { success: false, error: error.message || "Failed to generate download URL" };
   }
 }
