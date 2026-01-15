@@ -155,7 +155,6 @@ export default function AuthModal({
                   value={confirmationCode}
                   onChange={(e) => setConfirmationCode(e.target.value)}
                   className="border-2 border-black rounded-lg text-center text-2xl tracking-widest"
-                  placeholder="123456"
                   maxLength={6}
                 />
               </div>
