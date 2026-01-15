@@ -1,6 +1,6 @@
 /* =============================================================================
    NEOBRUTALIST COMPONENT: RESUME UPLOAD
-   Upload and manage resume files
+   Upload and manage resume files with S3 integration
    ============================================================================= */
 
 "use client";
@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/dialog";
 import { Upload, FileText, X, Check } from "lucide-react";
 import { useResume } from "@/lib/storage";
-import type { Resume } from "@/lib/app-types";
 
 interface ResumeUploadProps {
   isOpen: boolean;
@@ -26,10 +25,12 @@ interface ResumeUploadProps {
 export default function ResumeUpload({ isOpen, onClose }: ResumeUploadProps) {
   const { resume, uploadResume, deleteResume } = useResume();
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -40,35 +41,64 @@ export default function ResumeUpload({ isOpen, onClose }: ResumeUploadProps) {
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ];
     if (!validTypes.includes(file.type)) {
-      alert("Please upload a PDF or Word document");
+      setError("Please upload a PDF or Word document");
       return;
     }
 
+    // Validate file size (5MB max)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setError("File too large. Maximum size is 5MB.");
+      return;
+    }
+
+    setError(null);
     setUploading(true);
 
-    // Simulate upload
-    setTimeout(() => {
-      const newResume: Resume = {
-        id: Date.now().toString(),
-        fileName: file.name,
-        fileUrl: URL.createObjectURL(file),
-        uploadedDate: new Date().toISOString(),
-      };
+    try {
+      const result = await uploadResume(file);
 
-      uploadResume(newResume);
+      if (!result.success) {
+        setError(result.error || "Failed to upload resume");
+        setUploading(false);
+        return;
+      }
+
       setUploading(false);
       setUploadSuccess(true);
 
       setTimeout(() => {
         setUploadSuccess(false);
       }, 2000);
-    }, 1500);
+    } catch (err) {
+      setError("An unexpected error occurred");
+      setUploading(false);
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
-  const handleDelete = () => {
-    if (confirm("Are you sure you want to delete your resume?")) {
-      deleteResume();
+  const handleDelete = async () => {
+    if (!confirm("Are you sure you want to delete your resume?")) {
+      return;
     }
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      const result = await deleteResume();
+      if (!result.success) {
+        setError(result.error || "Failed to delete resume");
+      }
+    } catch (err) {
+      setError("An unexpected error occurred");
+    }
+
+    setDeleting(false);
   };
 
   return (
@@ -76,11 +106,18 @@ export default function ResumeUpload({ isOpen, onClose }: ResumeUploadProps) {
       <DialogContent className="max-w-md border-4 border-black rounded-2xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] bg-white">
         <DialogHeader>
           <DialogTitle className="text-2xl font-black">
-            📄 Resume Manager
+            Resume Manager
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border-2 border-red-400 rounded-xl p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
           {resume ? (
             <div className="bg-green-50 border-4 border-green-400 rounded-xl p-4">
               <div className="flex items-start gap-3">
@@ -100,9 +137,14 @@ export default function ResumeUpload({ isOpen, onClose }: ResumeUploadProps) {
                   size="icon"
                   variant="ghost"
                   onClick={handleDelete}
-                  className="hover:bg-red-100 rounded-lg"
+                  disabled={deleting}
+                  className="hover:bg-red-100 rounded-lg disabled:opacity-50"
                 >
-                  <X className="h-4 w-4" />
+                  {deleting ? (
+                    <span className="animate-spin h-4 w-4 border-2 border-gray-600 border-t-transparent rounded-full" />
+                  ) : (
+                    <X className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
             </div>
@@ -126,7 +168,7 @@ export default function ResumeUpload({ isOpen, onClose }: ResumeUploadProps) {
 
           <Button
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
+            disabled={uploading || deleting}
             className="w-full bg-black hover:bg-black/80 text-white rounded-xl border-2 border-black font-bold h-12 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-50"
           >
             {uploading ? (
@@ -148,7 +190,7 @@ export default function ResumeUpload({ isOpen, onClose }: ResumeUploadProps) {
           </Button>
 
           <p className="text-xs text-gray-600 text-center">
-            Supported formats: PDF, DOC, DOCX
+            Supported formats: PDF, DOC, DOCX (max 5MB)
           </p>
         </div>
       </DialogContent>

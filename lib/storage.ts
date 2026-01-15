@@ -105,21 +105,89 @@ export function useReferrals() {
 
 /* =============================================================================
    RESUME HOOK
-   Store and manage uploaded resume information
+   Store and manage uploaded resume information with S3 integration
    ============================================================================= */
 export function useResume() {
   const { data, mutate } = useSWR<Resume | null>(STORAGE_KEYS.RESUME, fetcher, {
     fallbackData: null,
   });
 
-  const uploadResume = (resume: Resume) => {
-    localStorage.setItem(STORAGE_KEYS.RESUME, JSON.stringify(resume));
-    mutate(resume, false);
+  /**
+   * Upload resume file to S3 and store metadata locally
+   * @param file - The file to upload
+   * @returns Upload result with success status and potential error
+   */
+  const uploadResume = async (
+    file: File
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/resume/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+
+      // Store resume metadata locally
+      const resume: Resume = {
+        id: result.data.id,
+        fileName: result.data.fileName,
+        fileUrl: "", // We don't store a URL, just the S3 key
+        s3Key: result.data.s3Key,
+        uploadedDate: result.data.uploadedDate,
+      };
+
+      localStorage.setItem(STORAGE_KEYS.RESUME, JSON.stringify(resume));
+      mutate(resume, false);
+
+      return { success: true };
+    } catch (error: any) {
+      console.error("Resume upload error:", error);
+      return { success: false, error: "Failed to upload resume" };
+    }
   };
 
-  const deleteResume = () => {
-    localStorage.removeItem(STORAGE_KEYS.RESUME);
-    mutate(null, false);
+  /**
+   * Delete resume from S3 and remove local metadata
+   */
+  const deleteResume = async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const currentResume = data;
+      
+      if (currentResume?.s3Key) {
+        // Delete from S3
+        const response = await fetch("/api/resume/delete", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ s3Key: currentResume.s3Key }),
+        });
+
+        const result = await response.json();
+        if (!result.success) {
+          console.error("Failed to delete from S3:", result.error);
+          // Continue to delete local data even if S3 delete fails
+        }
+      }
+
+      // Remove local data
+      localStorage.removeItem(STORAGE_KEYS.RESUME);
+      mutate(null, false);
+
+      return { success: true };
+    } catch (error: any) {
+      console.error("Resume delete error:", error);
+      // Still remove local data on error
+      localStorage.removeItem(STORAGE_KEYS.RESUME);
+      mutate(null, false);
+      return { success: false, error: "Failed to delete resume from cloud" };
+    }
   };
 
   return {

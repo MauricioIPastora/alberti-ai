@@ -58,6 +58,7 @@ export interface Resume {
   id: string;
   fileName: string;
   fileUrl: string;
+  s3Key: string;
   uploadedDate: string;
 }
 
